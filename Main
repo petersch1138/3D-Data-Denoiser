@@ -1,0 +1,68 @@
+clear all; close all; clc;
+% Peter Schultz 
+% Jan 25 2019
+
+% This script determines important frequencies from a set of noisy spatial
+% data at different time points, and filters the noisy data to extract 
+% useful information. 
+
+% Undata is m x (n^3) which corresponds to m time points of 3D spatial 
+% data, n*n*n
+%% define axes
+load Testdata
+
+L=15; % spatial domain
+n=64; % Fourier modes
+x2=linspace(-L,L,n+1); x=x2(1:n); y=x; z=x;
+k=(2*pi/(2*L))*[0:(n/2-1) -n/2:-1]; ks=fftshift(k);
+
+[X,Y,Z]=meshgrid(x,y,z);
+[Kx,Ky,Kz]=meshgrid(ks,ks,ks);
+
+%% find relevant frequencies
+m = size(Undata,1);
+sum = zeros(64,64,64);
+for j=1:m
+    un(:,:,:)=reshape(Undata(j,:),n,n,n);
+    unt = fftn(un);
+    unt = fftshift(unt);
+    sum = sum + unt;
+end
+avg = sum / m;
+
+[maxval, I] = max(abs(avg(:)));
+[r,c,p] = ind2sub(size(avg),I);
+
+
+%% create filter
+width=0.2;
+filter = fftshift(exp(-1*(width*(Kx-ks(c)).^2+width*(Ky-ks(r)).^2+width*(Kz-ks(p)).^2)));
+
+figure;
+isosurface(Kx,Ky,Kz,fftshift(filter),0.25);
+axis([-10 10 -10 10 -10 10]), grid on
+xlabel 'kx axis',ylabel 'ky axis',zlabel 'kz axis'
+text(ks(c)-10,ks(r),ks(p)+10,strcat('kx = ', num2str(ks(c)),', ky = ',...
+    num2str(ks(r)),', kz = ',num2str(ks(p))), 'Fontsize', 12);
+title 'Filter'
+%% filter data and plot
+figure;
+for j=1:m
+    un(:,:,:)=reshape(Undata(j,:),n,n,n);
+    unt = fftn(un);
+    unf = ifftn(unt .* filter);
+
+
+    isosurface(X,Y,Z,real(unf)/max(real(unf(:))), 0.9)
+    axis([-20 20 -20 20 -20 20]), grid on, drawnow
+    title 'Marble Location'
+    xlabel 'x position (inches)',ylabel 'y position (inches)',zlabel 'z position (inches)'
+    
+
+end
+
+%% find position of marble at t=20
+
+[mv, i] = max(unf(:));
+[rm,cm,pm]=ind2sub(size(unf),i);
+loc = [x(cm),y(rm),z(pm)];
